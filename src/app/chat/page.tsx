@@ -1,14 +1,12 @@
 // src/app/chat/page.tsx
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import RoomEntry from '../../components/RoomEntry';
 import MessageItem from '../../components/MessageItem';
 import { RoomPreviewInfo, Message, RoomInfo } from '../../types';
-import { getRoomList, getRoomMessages, addMessage, createRoom, deleteRoom, getMessageUpdates } from '../../services/api';
-
-
+import { getRoomList, getRoomMessages, sendMessage, createRoom } from '../../services/api';
 
 export default function ChatRoom() {
   const router = useRouter();
@@ -20,101 +18,19 @@ export default function ChatRoom() {
   const [currentRoom, setCurrentRoom] = useState<RoomInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const shouldShowTime = (currentMsg: Message, prevMsg: Message | null) => {
-  // 如果是第一条消息，显示时间
-  if (!prevMsg) return true;
-  
-  // 如果两条消息之间的时间间隔超过5分钟（300000毫秒），显示时间
-  return currentMsg.time - prevMsg.time > 300000;
-};
-
-  useEffect(() => {
-    // 检查用户是否设置了昵称
-    const storedUsername = localStorage.getItem('username');
-    if (!storedUsername) {
-      router.push('/');
-      return;
-    }
-    setUsername(storedUsername);
-
-    // 获取房间列表
-    const fetchRooms = async () => {
-      try {
-        setLoading(true);
-        const roomList = await getRoomList();
-        setRooms(roomList);
-        
-        // 默认选中第一个房间
-        if (roomList.length > 0 && !activeRoomId) {
-          handleRoomClick(roomList[0].roomId);
-        }
-        setLoading(false);
-      } catch (err) {
-        setError('获取房间列表失败');
-        setLoading(false);
-        console.error('获取房间列表失败:', err);
-      }
-    };
+    // 如果是第一条消息，显示时间
+    if (!prevMsg) return true;
     
-    fetchRooms();
-    
-    // 定期刷新房间列表
-    const roomListInterval = setInterval(async () => {
-      try {
-        const roomList = await getRoomList();
-        setRooms(roomList);
-      } catch (err) {
-        console.error('刷新房间列表失败:', err);
-      }
-    }, 30000); // 每30秒刷新一次
-    
-    return () => {
-      clearInterval(roomListInterval);
-    };
-  }, []);
-
-  // 定期更新消息的间隔ID
-  const [messageUpdateInterval, setMessageUpdateInterval] = useState<NodeJS.Timeout | null>(null);
-  
-  // 清除消息更新间隔
-  const clearMessageInterval = () => {
-    if (messageUpdateInterval) {
-      clearInterval(messageUpdateInterval);
-      setMessageUpdateInterval(null);
-    }
+    // 如果两条消息之间的时间间隔超过5分钟（300000毫秒），显示时间
+    return currentMsg.time - prevMsg.time > 300000;
   };
-  
-  // 设置消息更新间隔
-  const setupMessageInterval = (roomId: number) => {
-    clearMessageInterval();
-    
-    const interval = setInterval(async () => {
-      if (messages.length > 0) {
-        try {
-          const latestMessages = await getMessageUpdates(roomId, messages[messages.length - 1].messageId);
-          if (latestMessages.length > 0) {
-            setMessages(prev => [...prev, ...latestMessages]);
-          }
-        } catch (err) {
-          console.error('获取消息更新失败:', err);
-        }
-      }
-    }, 5000); // 每5秒更新一次
-    
-    setMessageUpdateInterval(interval);
-  };
-  
-  // 清除所有间隔
-  useEffect(() => {
-    return () => {
-      clearMessageInterval();
-    };
-  }, []);
-  
-  const handleRoomClick = async (roomId: number) => {
+
+  // 处理房间点击
+  const handleRoomClick = useCallback(async (roomId: number) => {
     setActiveRoomId(roomId);
     setLoading(true);
-    clearMessageInterval(); // 切换房间时清除旧的更新间隔
     
     try {
       // 从API获取消息
@@ -131,16 +47,88 @@ export default function ChatRoom() {
         });
       }
       
-      // 设置新的消息更新间隔
-      setupMessageInterval(roomId);
-      
       setLoading(false);
     } catch (err) {
       setError('获取房间消息失败');
       setLoading(false);
       console.error('获取房间消息失败:', err);
     }
-  };
+  }, [rooms]);
+
+
+
+  useEffect(() => {
+    // 检查用户是否设置了昵称
+    const storedUsername = localStorage.getItem('username');
+    if (!storedUsername) {
+      router.push('/');
+      return;
+    }
+    setUsername(storedUsername);
+
+    // 获取房间列表
+    const initRooms = async () => {
+      try {
+        setLoading(true);
+        const roomList = await getRoomList();
+        setRooms(roomList);
+        
+        // 默认选中第一个房间
+        if (roomList.length > 0 && !activeRoomId) {
+          const firstRoom = roomList[0];
+          setActiveRoomId(firstRoom.roomId);
+          
+          // 获取第一个房间的消息
+          const roomMessages = await getRoomMessages(firstRoom.roomId);
+          setMessages(roomMessages);
+          
+          // 设置当前房间信息
+          setCurrentRoom({
+            roomId: firstRoom.roomId,
+            roomName: firstRoom.roomName,
+            createdBy: firstRoom.lastMessage?.sender || '未知'
+          });
+        }
+        setLoading(false);
+      } catch (err) {
+        setError('获取房间列表失败');
+        setLoading(false);
+        console.error('获取房间列表失败:', err);
+      }
+    };
+
+    initRooms();
+    
+    // 定期刷新房间列表
+    const roomListInterval = setInterval(async () => {
+      try {
+        const roomList = await getRoomList();
+        setRooms(roomList);
+      } catch (err) {
+        console.error('刷新房间列表失败:', err);
+      }
+    }, 60000); // 每60秒刷新一次
+    
+    return () => {
+      clearInterval(roomListInterval);
+    };
+  }, [router, activeRoomId]);
+
+  // 定期更新消息
+  useEffect(() => {
+    if (!activeRoomId) return;
+
+    const messageInterval = setInterval(async () => {
+      try {
+        const roomMessages = await getRoomMessages(activeRoomId);
+        setMessages(roomMessages);
+      } catch (err) {
+        console.error('获取消息更新失败:', err);
+      }
+    }, 10000); // 每10秒更新一次
+
+    return () => clearInterval(messageInterval);
+  }, [activeRoomId]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,16 +139,11 @@ export default function ChatRoom() {
         setNewMessage('');
         
         // 调用API发送消息
-        await addMessage(activeRoomId, messageContent, username);
+        await sendMessage(activeRoomId, messageContent);
         
         // 获取最新消息列表
-        if (messages.length > 0) {
-          const latestMessages = await getMessageUpdates(activeRoomId, messages[messages.length - 1].messageId);
-          setMessages(prev => [...prev, ...latestMessages]);
-        } else {
-          const roomMessages = await getRoomMessages(activeRoomId);
-          setMessages(roomMessages);
-        }
+        const roomMessages = await getRoomMessages(activeRoomId);
+        setMessages(roomMessages);
       } catch (err) {
         setError('发送消息失败');
         console.error('发送消息失败:', err);
@@ -177,14 +160,14 @@ export default function ChatRoom() {
     if (newRoomName.trim()) {
       try {
         setLoading(true);
-        const roomId = await createRoom(username, newRoomName);
+        const newRoom = await createRoom(newRoomName);
         
         // 重新获取房间列表
         const roomList = await getRoomList();
         setRooms(roomList);
         
         // 选中新创建的房间
-        handleRoomClick(roomId);
+        handleRoomClick(newRoom.roomId);
         
         // 重置表单
         setNewRoomName('');

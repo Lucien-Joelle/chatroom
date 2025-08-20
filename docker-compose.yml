@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: chatroom-postgres
+    environment:
+      POSTGRES_DB: chatroom_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - chatroom-network
+
+  # Next.js应用
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chatroom-app
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/chatroom_db
+      JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
+      NEXTAUTH_SECRET: your-nextauth-secret
+      NEXTAUTH_URL: http://localhost:3000
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+    networks:
+      - chatroom-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  chatroom-network:
+    driver: bridge
