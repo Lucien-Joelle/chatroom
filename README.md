@@ -2,22 +2,6 @@
 
 这是一个基于 Next.js + TypeScript + Prisma 的全栈聊天室应用，支持用户注册登录、创建聊天室、实时消息等功能。
 
-## 功能特性
-
-- 🔐 用户认证：注册、登录、JWT令牌认证
-- 💬 聊天室管理：创建、删除聊天室
-- 📨 实时消息：发送和接收消息
-- 🎨 现代化UI：使用Tailwind CSS构建
-- 🚀 全栈部署：支持Docker容器化部署
-
-## 技术栈
-
-- **前端**: Next.js 15, React 19, TypeScript, Tailwind CSS, SWR
-- **后端**: Next.js API Routes, Prisma ORM, PostgreSQL
-- **认证**: JWT, bcryptjs
-- **验证**: Zod
-- **部署**: Docker, Docker Compose
-
 ## 快速开始
 
 ### 环境要求
@@ -151,42 +135,3 @@ pnpm db:studio
 pnpm db:seed
 ```
 
-### 代码规范
-
-项目使用ESLint进行代码检查：
-
-```bash
-pnpm lint
-```
-
-## 部署
-
-### 生产环境部署
-
-1. **使用Docker Compose**
-   ```bash
-   docker-compose up -d
-   ```
-
-2. **手动部署**
-   ```bash
-   pnpm build
-   pnpm start
-   ```
-
-### 环境变量配置
-
-生产环境需要配置以下环境变量：
-
-- `DATABASE_URL`: PostgreSQL数据库连接字符串
-- `JWT_SECRET`: JWT签名密钥
-- `NEXTAUTH_SECRET`: NextAuth.js密钥
-- `NEXTAUTH_URL`: 应用URL
-
-## 贡献
-
-欢迎提交Issue和Pull Request！
-
-## 许可证
-
-MIT License
